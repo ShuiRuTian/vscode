@@ -113,7 +113,6 @@ export class EditorControl extends Disposable {
 			const editorPaneContainer = document.createElement('div');
 			addClass(editorPaneContainer, 'editor-instance');
 			editorPaneContainer.setAttribute('data-editor-id', descriptor.getId());
-			editorPaneContainer.setAttribute('role', 'code');
 
 			editorPane.create(editorPaneContainer);
 		}
@@ -206,6 +205,7 @@ export class EditorControl extends Disposable {
 		// Remove editor pane from parent and hide
 		const editorPaneContainer = this._activeEditorPane.getContainer();
 		if (editorPaneContainer) {
+			this._activeEditorPane.onWillHide();
 			this.parent.removeChild(editorPaneContainer);
 			hide(editorPaneContainer);
 			this._activeEditorPane.onHide();

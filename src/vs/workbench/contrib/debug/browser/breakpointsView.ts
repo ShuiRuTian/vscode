@@ -164,6 +164,7 @@ export class BreakpointsView extends ViewPane {
 	}
 
 	protected layoutBody(height: number, width: number): void {
+		super.layoutBody(height, width);
 		if (this.list) {
 			this.list.layout(height, width);
 		}
@@ -621,6 +622,10 @@ class FunctionBreakpointInputRenderer implements IListRenderer<IFunctionBreakpoi
 class BreakpointsAccessibilityProvider implements IListAccessibilityProvider<BreakpointItem> {
 
 	constructor(private readonly debugService: IDebugService) { }
+
+	getWidgetAriaLabel(): string {
+		return nls.localize('breakpoints', "Breakpoints");
+	}
 
 	getRole() {
 		return 'checkbox';

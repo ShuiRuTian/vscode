@@ -140,6 +140,12 @@
             "usesOnlineServices"
           ]
         },
+        "typescript.enablePromptUseWorkspaceTsdk": {
+          "type": "boolean",
+          "default": false,
+          "description": "%typescript.enablePromptUseWorkspaceTsdk%",
+          "scope": "window"
+        },
         "typescript.npm": {
           "type": [
             "string",
@@ -677,14 +683,14 @@
         "javascript.preferences.renameShorthandProperties": {
           "type": "boolean",
           "default": true,
-          "description": "%typescript.preferences.renameShorthandProperties%",
+          "description": "%typescript.preferences.useAliasesForRenames%",
           "deprecationMessage": "%typescript.preferences.renameShorthandProperties.deprecationMessage%",
           "scope": "resource"
         },
         "typescript.preferences.renameShorthandProperties": {
           "type": "boolean",
           "default": true,
-          "description": "%typescript.preferences.renameShorthandProperties%",
+          "description": "%typescript.preferences.useAliasesForRenames%",
           "deprecationMessage": "%typescript.preferences.renameShorthandProperties.deprecationMessage%",
           "scope": "resource"
         },

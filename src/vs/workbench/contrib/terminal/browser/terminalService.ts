@@ -701,10 +701,10 @@ export class TerminalService implements ITerminalService {
 
 	public hidePanel(): void {
 		// Hide the panel if the terminal is in the panel and it has no sibling views
-		const location = this._viewDescriptorService.getViewLocation(TERMINAL_VIEW_ID);
+		const location = this._viewDescriptorService.getViewLocationById(TERMINAL_VIEW_ID);
 		if (location === ViewContainerLocation.Panel) {
-			const panel = this._viewDescriptorService.getViewContainer(TERMINAL_VIEW_ID);
-			if (panel && this._viewDescriptorService.getViewDescriptors(panel).activeViewDescriptors.length === 1) {
+			const panel = this._viewDescriptorService.getViewContainerByViewId(TERMINAL_VIEW_ID);
+			if (panel && this._viewDescriptorService.getViewContainerModel(panel).activeViewDescriptors.length === 1) {
 				this._layoutService.setPanelHidden(true);
 			}
 		}

@@ -50,10 +50,19 @@ export interface NotebookDocumentMetadata {
 	hasExecutionOrder: boolean;
 }
 
+export enum NotebookCellRunState {
+	Running = 1,
+	Idle = 2,
+	Success = 3,
+	Error = 4
+}
+
 export interface NotebookCellMetadata {
 	editable?: boolean;
 	runnable?: boolean;
 	executionOrder?: number;
+	statusMessage?: string;
+	runState?: NotebookCellRunState;
 }
 
 export interface INotebookDisplayOrder {
@@ -164,10 +173,11 @@ export interface INotebookTextModel {
 	viewType: string;
 	// metadata: IMetadata;
 	readonly uri: URI;
+	readonly versionId: number;
 	languages: string[];
 	cells: ICell[];
 	renderers: Set<number>;
-	onDidChangeCells?: Event<NotebookCellsSplice[]>;
+	onDidChangeCells?: Event<NotebookCellTextModelSplice[]>;
 	onDidChangeContent: Event<void>;
 	onWillDispose(listener: () => void): IDisposable;
 }
@@ -177,9 +187,9 @@ export interface IRenderOutput {
 	hasDynamicHeight: boolean;
 }
 
-export type NotebookCellsSplice = [
+export type NotebookCellTextModelSplice = [
 	number /* start */,
-	number /* delete count */,
+	number,
 	ICell[]
 ];
 

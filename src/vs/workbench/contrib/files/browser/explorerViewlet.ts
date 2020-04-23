@@ -38,6 +38,7 @@ import { WorkbenchStateContext, RemoteNameContext } from 'vs/workbench/browser/c
 import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
 import { AddRootFolderAction, OpenFolderAction, OpenFileFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
 import { isMacintosh } from 'vs/base/common/platform';
+import { Codicon } from 'vs/base/common/codicons';
 
 export class ExplorerViewletViewsContribution extends Disposable implements IWorkbenchContribution {
 
@@ -123,7 +124,7 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 		return {
 			id: EmptyView.ID,
 			name: EmptyView.NAME,
-			containerIcon: 'codicon-files',
+			containerIcon: Codicon.files.classNames,
 			ctorDescriptor: new SyncDescriptor(EmptyView),
 			order: 1,
 			canToggleVisibility: true,
@@ -137,7 +138,7 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 		return {
 			id: ExplorerView.ID,
 			name: localize('folders', "Folders"),
-			containerIcon: 'codicons-files',
+			containerIcon: Codicon.files.classNames,
 			ctorDescriptor: new SyncDescriptor(ExplorerView),
 			order: 1,
 			canToggleVisibility: false,
@@ -160,8 +161,6 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 
 export class ExplorerViewPaneContainer extends ViewPaneContainer {
 
-	private static readonly EXPLORER_VIEWS_STATE = 'workbench.explorer.views.state';
-
 	private viewletVisibleContextKey: IContextKey<boolean>;
 
 	constructor(
@@ -179,7 +178,7 @@ export class ExplorerViewPaneContainer extends ViewPaneContainer {
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService
 	) {
 
-		super(VIEWLET_ID, ExplorerViewPaneContainer.EXPLORER_VIEWS_STATE, { mergeViewWithContainerWhenSingleView: true }, instantiationService, configurationService, layoutService, contextMenuService, telemetryService, extensionService, themeService, storageService, contextService, viewDescriptorService);
+		super(VIEWLET_ID, { mergeViewWithContainerWhenSingleView: true }, instantiationService, configurationService, layoutService, contextMenuService, telemetryService, extensionService, themeService, storageService, contextService, viewDescriptorService);
 
 		this.viewletVisibleContextKey = ExplorerViewletVisibleContext.bindTo(contextKeyService);
 
@@ -262,7 +261,9 @@ export const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry
 	id: VIEWLET_ID,
 	name: localize('explore', "Explorer"),
 	ctorDescriptor: new SyncDescriptor(ExplorerViewPaneContainer),
-	icon: 'codicon-files',
+	storageId: 'workbench.explorer.views.state',
+	icon: Codicon.files.classNames,
+	alwaysUseContainerInfo: true,
 	order: 0
 }, ViewContainerLocation.Sidebar);
 

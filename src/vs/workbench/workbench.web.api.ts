@@ -86,6 +86,71 @@ interface ICommand {
 	handler: (...args: any[]) => unknown;
 }
 
+interface IHomeIndicator {
+
+	/**
+	 * The identifier of the command to run when clicking the home indicator.
+	 */
+	command: string;
+
+	/**
+	 * The icon name for the home indicator. This needs to be one of the existing
+	 * icons from our Codicon icon set. For example `sync`.
+	 */
+	icon: string;
+
+	/**
+	 * A tooltip that will appear while hovering over the home indicator.
+	 */
+	title: string;
+}
+
+interface IDefaultSideBarLayout {
+	visible?: boolean;
+	containers?: ({
+		id: 'explorer' | 'run' | 'scm' | 'search' | 'extensions' | 'remote' | string;
+		active: true;
+		order?: number;
+		views?: {
+			id: string;
+			order?: number;
+			visible?: boolean;
+			collapsed?: boolean;
+		}[];
+	} | {
+		id: 'explorer' | 'run' | 'scm' | 'search' | 'extensions' | 'remote' | string;
+		active?: false;
+		order?: number;
+		visible?: boolean;
+		views?: {
+			id: string;
+			order?: number;
+			visible?: boolean;
+			collapsed?: boolean;
+		}[];
+	})[];
+}
+
+interface IDefaultPanelLayout {
+	visible?: boolean;
+	containers?: ({
+		id: 'terminal' | 'debug' | 'problems' | 'output' | 'comments' | string;
+		order?: number;
+		active: true;
+	} | {
+		id: 'terminal' | 'debug' | 'problems' | 'output' | 'comments' | string;
+		order?: number;
+		active?: false;
+		visible?: boolean;
+	})[];
+}
+
+interface IDefaultLayout {
+	sidebar?: IDefaultSideBarLayout;
+	panel?: IDefaultPanelLayout;
+	// editors?: IDefaultWorkspaceEditorsLayout
+}
+
 interface IWorkbenchConstructionOptions {
 
 	//#region Connection related configuration
@@ -149,6 +214,16 @@ interface IWorkbenchConstructionOptions {
 	userDataProvider?: IFileSystemProvider;
 
 	/**
+	 * Session id of the current authenticated user
+	 */
+	readonly authenticationSessionId?: string;
+
+	/**
+	 * Enables user data sync by default and syncs into the current authenticated user account using the provided [authenticationSessionId}(#authenticationSessionId).
+	 */
+	readonly enableSyncByDefault?: boolean;
+
+	/**
 	 * The credentials provider to store and retrieve secrets.
 	 */
 	readonly credentialsProvider?: ICredentialsProvider;
@@ -181,6 +256,11 @@ interface IWorkbenchConstructionOptions {
 	 */
 	readonly commands?: readonly ICommand[];
 
+	/**
+	 * Optional home indicator to appear above the hamburger menu in the activity bar.
+	 */
+	readonly homeIndicator?: IHomeIndicator;
+
 	//#endregion
 
 
@@ -197,18 +277,12 @@ interface IWorkbenchConstructionOptions {
 	readonly driver?: boolean;
 
 	//#endregion
+
+	defaultLayout?: IDefaultLayout;
 }
 
 interface IWorkbench {
 	commands: {
-
-		/**
-		 * Allows to execute any command if known with the provided arguments.
-		 *
-		 * @param command Identifier of the command to execute.
-		 * @param rest Parameters passed to the command function.
-		 * @return A promise that resolves to the returned value of the given command.
-		 */
 		executeCommand(command: string, ...args: any[]): Promise<unknown>;
 	}
 }
@@ -218,11 +292,11 @@ interface IWorkbench {
  *
  * @param domElement the container to create the workbench in
  * @param options for setting up the workbench
- *
- * @returns the workbench API facade.
  */
 let created = false;
-async function create(domElement: HTMLElement, options: IWorkbenchConstructionOptions): Promise<IWorkbench> {
+let workbenchPromiseResolve: Function;
+const workbenchPromise = new Promise<IWorkbench>(resolve => workbenchPromiseResolve = resolve);
+async function create(domElement: HTMLElement, options: IWorkbenchConstructionOptions): Promise<void> {
 
 	// Assert that the workbench is not created more than once. We currently
 	// do not support this and require a full context switch to clean-up.
@@ -232,8 +306,9 @@ async function create(domElement: HTMLElement, options: IWorkbenchConstructionOp
 		created = true;
 	}
 
-	// Startup workbench
+	// Startup workbench and resolve waiters
 	const workbench = await main(domElement, options);
+	workbenchPromiseResolve(workbench);
 
 	// Register commands if any
 	if (Array.isArray(options.commands)) {
@@ -245,8 +320,25 @@ async function create(domElement: HTMLElement, options: IWorkbenchConstructionOp
 			});
 		}
 	}
+}
 
-	return workbench;
+
+//#region API Facade
+
+namespace commands {
+
+	/**
+	* Allows to execute any command if known with the provided arguments.
+	*
+	* @param command Identifier of the command to execute.
+	* @param rest Parameters passed to the command function.
+	* @return A promise that resolves to the returned value of the given command.
+	*/
+	export async function executeCommand(command: string, ...args: any[]): Promise<unknown> {
+		const workbench = await workbenchPromise;
+
+		return workbench.commands.executeCommand(command, ...args);
+	}
 }
 
 export {
@@ -313,5 +405,16 @@ export {
 	IShowPortCandidate,
 
 	// Commands
-	ICommand
+	ICommand,
+	commands,
+
+	// Home Indicator
+	IHomeIndicator,
+
+	// Default layout
+	IDefaultLayout,
+	IDefaultPanelLayout,
+	IDefaultSideBarLayout,
 };
+
+//#endregion

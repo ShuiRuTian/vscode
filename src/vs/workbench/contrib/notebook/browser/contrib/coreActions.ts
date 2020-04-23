@@ -9,11 +9,11 @@ import { localize } from 'vs/nls';
 import { Action2, IAction2Options, MenuId, MenuItemAction, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { InputFocusedContext, InputFocusedContextKey, IsDevelopmentContext } from 'vs/platform/contextkey/common/contextkeys';
+import { InputFocusedContext, InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { NOTEBOOK_CELL_EDITABLE_CONTEXT_KEY, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE_CONTEXT_KEY, NOTEBOOK_CELL_TYPE_CONTEXT_KEY, NOTEBOOK_EDITABLE_CONTEXT_KEY, NOTEBOOK_EXECUTING_KEY } from 'vs/workbench/contrib/notebook/browser/constants';
-import { BaseCellRenderTemplate, CellEditState, CellRunState, ICellViewModel, INotebookEditor, KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED, NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { BaseCellRenderTemplate, CellEditState, CellRunState, ICellViewModel, INotebookEditor, NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellKind, NOTEBOOK_EDITOR_CURSOR_BOUNDARY } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
@@ -171,7 +171,7 @@ registerAction2(class extends Action2 {
 			return;
 		}
 
-		const idx = editor.viewModel?.getViewCellIndex(activeCell);
+		const idx = editor.viewModel?.getCellIndex(activeCell);
 		if (typeof idx !== 'number') {
 			return;
 		}
@@ -179,9 +179,10 @@ registerAction2(class extends Action2 {
 		// Try to select below, fall back on inserting
 		const nextCell = editor.viewModel?.viewCells[idx + 1];
 		if (nextCell) {
-			editor.focusNotebookCell(nextCell, false);
+			editor.focusNotebookCell(nextCell, activeCell.editState === CellEditState.Editing);
 		} else {
-			await editor.insertNotebookCell(activeCell, CellKind.Code, 'below');
+			const newCell = editor.insertNotebookCell(activeCell, CellKind.Code, 'below');
+			editor.focusNotebookCell(newCell, true);
 		}
 	}
 });
@@ -211,7 +212,8 @@ registerAction2(class extends Action2 {
 			return;
 		}
 
-		await editor.insertNotebookCell(activeCell, CellKind.Code, 'below');
+		const newCell = editor.insertNotebookCell(activeCell, CellKind.Code, 'below');
+		editor.focusNotebookCell(newCell, true);
 	}
 });
 
@@ -286,48 +288,6 @@ registerAction2(class extends Action2 {
 
 			editor.focusNotebookCell(activeCell, false);
 		}
-	}
-});
-
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'workbench.action.notebook.hideFind',
-			title: localize('notebookActions.hideFind', "Hide Find in Notebook"),
-			keybinding: {
-				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED),
-				primary: KeyCode.Escape,
-				weight: KeybindingWeight.WorkbenchContrib
-			}
-		});
-	}
-
-	async run(accessor: ServicesAccessor): Promise<void> {
-		let editorService = accessor.get(IEditorService);
-		let editor = getActiveNotebookEditor(editorService);
-
-		editor?.hideFind();
-	}
-});
-
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'workbench.action.notebook.find',
-			title: localize('notebookActions.findInNotebook', "Find in Notebook"),
-			keybinding: {
-				when: NOTEBOOK_EDITOR_FOCUSED,
-				primary: KeyCode.KEY_F | KeyMod.CtrlCmd,
-				weight: KeybindingWeight.WorkbenchContrib
-			}
-		});
-	}
-
-	async run(accessor: ServicesAccessor): Promise<void> {
-		let editorService = accessor.get(IEditorService);
-		let editor = getActiveNotebookEditor(editorService);
-
-		editor?.showFind();
 	}
 });
 
@@ -452,8 +412,8 @@ async function changeActiveCellToKind(kind: CellKind, accessor: ServicesAccessor
 	}
 
 	const text = activeCell.getText();
-	await editor.insertNotebookCell(activeCell, kind, 'below', text);
-	const idx = editor.viewModel?.getViewCellIndex(activeCell);
+	editor.insertNotebookCell(activeCell, kind, 'below', text);
+	const idx = editor.viewModel?.getCellIndex(activeCell);
 	if (typeof idx !== 'number') {
 		return;
 	}
@@ -463,7 +423,7 @@ async function changeActiveCellToKind(kind: CellKind, accessor: ServicesAccessor
 		return;
 	}
 
-	editor.focusNotebookCell(newCell, true);
+	editor.focusNotebookCell(newCell, activeCell.editState === CellEditState.Editing);
 	editor.deleteNotebookCell(activeCell);
 }
 
@@ -513,7 +473,8 @@ abstract class InsertCellCommand extends Action2 {
 			}
 		}
 
-		await context.notebookEditor.insertNotebookCell(context.cell, this.kind, this.direction);
+		const newCell = context.notebookEditor.insertNotebookCell(context.cell, this.kind, this.direction);
+		context.notebookEditor.focusNotebookCell(newCell, true);
 	}
 }
 
@@ -522,7 +483,9 @@ registerAction2(class extends InsertCellCommand {
 		super(
 			{
 				id: INSERT_CODE_CELL_ABOVE_COMMAND_ID,
-				title: localize('notebookActions.insertCodeCellAbove', "Insert Code Cell Above")
+				title: localize('notebookActions.insertCodeCellAbove', "Insert Code Cell Above"),
+				category: NOTEBOOK_ACTIONS_CATEGORY,
+				f1: true
 			},
 			CellKind.Code,
 			'above');
@@ -537,8 +500,7 @@ export class InsertCodeCellAction extends MenuItemAction {
 		super(
 			{
 				id: INSERT_CODE_CELL_BELOW_COMMAND_ID,
-				title: localize('notebookActions.insertCodeCellBelow', "Insert Code Cell Below"),
-				// icon: { id: 'codicon/add' },
+				title: localize('notebookActions.insertCodeCellBelow', "Insert Code Cell Below")
 			},
 			undefined,
 			{ shouldForwardArgs: true },
@@ -555,16 +517,6 @@ registerAction2(class extends InsertCellCommand {
 				title: localize('notebookActions.insertCodeCellBelow', "Insert Code Cell Below"),
 				category: NOTEBOOK_ACTIONS_CATEGORY,
 				icon: { id: 'codicon/add' },
-				menu: {
-					id: MenuId.NotebookCellTitle,
-					order: CellToolbarOrder.InsertCell,
-					alt: {
-						id: INSERT_MARKDOWN_CELL_BELOW_COMMAND_ID,
-						title: localize('notebookActions.insertMarkdownCellBelow', "Insert Markdown Cell Below"),
-						icon: { id: 'codicon/add' },
-					},
-					when: ContextKeyExpr.equals(NOTEBOOK_EDITABLE_CONTEXT_KEY, true)
-				},
 				f1: true
 			},
 			CellKind.Code,
@@ -578,6 +530,8 @@ registerAction2(class extends InsertCellCommand {
 			{
 				id: INSERT_MARKDOWN_CELL_ABOVE_COMMAND_ID,
 				title: localize('notebookActions.insertMarkdownCellAbove', "Insert Markdown Cell Above"),
+				category: NOTEBOOK_ACTIONS_CATEGORY,
+				f1: true
 			},
 			CellKind.Markdown,
 			'above');
@@ -606,7 +560,9 @@ registerAction2(class extends InsertCellCommand {
 		super(
 			{
 				id: INSERT_MARKDOWN_CELL_BELOW_COMMAND_ID,
-				title: localize('notebookActions.insertMarkdownCellBelow', "Insert Markdown Cell Below")
+				title: localize('notebookActions.insertMarkdownCellBelow', "Insert Markdown Cell Below"),
+				category: NOTEBOOK_ACTIONS_CATEGORY,
+				f1: true
 			},
 			CellKind.Markdown,
 			'below');
@@ -662,7 +618,7 @@ registerAction2(class extends Action2 {
 						ContextKeyExpr.equals(NOTEBOOK_CELL_EDITABLE_CONTEXT_KEY, true)),
 					order: CellToolbarOrder.SaveCell
 				},
-				icon: { id: 'codicon/save' }
+				icon: { id: 'codicon/check' }
 			});
 	}
 
@@ -704,7 +660,7 @@ registerAction2(class extends Action2 {
 			});
 	}
 
-	run(accessor: ServicesAccessor, context?: INotebookCellActionContext) {
+	async run(accessor: ServicesAccessor, context?: INotebookCellActionContext) {
 		if (!isCellActionContext(context)) {
 			context = getActiveCellContext(accessor);
 			if (!context) {
@@ -712,20 +668,39 @@ registerAction2(class extends Action2 {
 			}
 		}
 
-		return context.notebookEditor.deleteNotebookCell(context.cell);
+		const index = context.notebookEditor.viewModel!.getCellIndex(context.cell);
+		const result = await context.notebookEditor.deleteNotebookCell(context.cell);
+
+		if (result) {
+			// deletion succeeds, move focus to the next cell
+			const nextCellIdx = index < context.notebookEditor.viewModel!.length ? index : context.notebookEditor.viewModel!.length - 1;
+			if (nextCellIdx >= 0) {
+				context.notebookEditor.focusNotebookCell(context.notebookEditor.viewModel!.viewCells[nextCellIdx], false);
+			} else {
+				// No cells left, insert a new empty one
+				const newCell = context.notebookEditor.insertNotebookCell(undefined, context.cell.cellKind);
+				context.notebookEditor.focusNotebookCell(newCell, true);
+			}
+		}
 	}
 });
 
 async function moveCell(context: INotebookCellActionContext, direction: 'up' | 'down'): Promise<void> {
-	direction === 'up' ?
+	const result = direction === 'up' ?
 		context.notebookEditor.moveCellUp(context.cell) :
 		context.notebookEditor.moveCellDown(context.cell);
+
+	if (result) {
+		// move cell command only works when the cell container has focus
+		context.notebookEditor.focusNotebookCell(context.cell, false);
+	}
 }
 
 async function copyCell(context: INotebookCellActionContext, direction: 'up' | 'down'): Promise<void> {
 	const text = context.cell.getText();
 	const newCellDirection = direction === 'up' ? 'above' : 'below';
-	await context.notebookEditor.insertNotebookCell(context.cell, context.cell.cellKind, newCellDirection, text);
+	const newCell = context.notebookEditor.insertNotebookCell(context.cell, context.cell.cellKind, newCellDirection, text);
+	context.notebookEditor.focusNotebookCell(newCell, false);
 }
 
 registerAction2(class extends Action2 {
@@ -736,16 +711,6 @@ registerAction2(class extends Action2 {
 				title: localize('notebookActions.moveCellUp', "Move Cell Up"),
 				category: NOTEBOOK_ACTIONS_CATEGORY,
 				icon: { id: 'codicon/arrow-up' },
-				menu: {
-					id: MenuId.NotebookCellTitle,
-					order: CellToolbarOrder.MoveCellUp,
-					alt: {
-						id: COPY_CELL_UP_COMMAND_ID,
-						title: localize('notebookActions.copyCellUp', "Copy Cell Up"),
-						icon: { id: 'codicon/arrow-up' }
-					},
-					when: ContextKeyExpr.equals(NOTEBOOK_EDITABLE_CONTEXT_KEY, true)
-				},
 				f1: true
 			});
 	}
@@ -770,16 +735,6 @@ registerAction2(class extends Action2 {
 				title: localize('notebookActions.moveCellDown', "Move Cell Down"),
 				category: NOTEBOOK_ACTIONS_CATEGORY,
 				icon: { id: 'codicon/arrow-down' },
-				menu: {
-					id: MenuId.NotebookCellTitle,
-					order: CellToolbarOrder.MoveCellDown,
-					alt: {
-						id: COPY_CELL_DOWN_COMMAND_ID,
-						title: localize('notebookActions.copyCellDown', "Copy Cell Down"),
-						icon: { id: 'codicon/arrow-down' }
-					},
-					when: ContextKeyExpr.equals(NOTEBOOK_EDITABLE_CONTEXT_KEY, true)
-				},
 				f1: true
 			});
 	}
@@ -860,7 +815,7 @@ registerAction2(class extends Action2 {
 			return;
 		}
 
-		viewModel.deleteCell(viewModel.getViewCellIndex(context.cell), true);
+		viewModel.deleteCell(viewModel.getCellIndex(context.cell), true);
 		notebookService.setToCopy([context.cell.model]);
 	}
 });
@@ -898,7 +853,7 @@ registerAction2(class extends Action2 {
 			return;
 		}
 
-		const currCellIndex = viewModel.getViewCellIndex(context!.cell);
+		const currCellIndex = viewModel.getCellIndex(context!.cell);
 
 		pasteCells.reverse().forEach(pasteCell => {
 			viewModel.insertCell(currCellIndex, pasteCell, true);
@@ -939,7 +894,7 @@ registerAction2(class extends Action2 {
 			return;
 		}
 
-		const currCellIndex = viewModel.getViewCellIndex(context!.cell);
+		const currCellIndex = viewModel.getCellIndex(context!.cell);
 
 		pasteCells.reverse().forEach(pasteCell => {
 			viewModel.insertCell(currCellIndex + 1, pasteCell, true);
@@ -1018,7 +973,7 @@ registerAction2(class extends Action2 {
 		const editor = context.notebookEditor;
 		const activeCell = context.cell;
 
-		const idx = editor.viewModel?.getViewCellIndex(activeCell);
+		const idx = editor.viewModel?.getCellIndex(activeCell);
 		if (typeof idx !== 'number') {
 			return;
 		}
@@ -1057,7 +1012,7 @@ registerAction2(class extends Action2 {
 		const editor = context.notebookEditor;
 		const activeCell = context.cell;
 
-		const idx = editor.viewModel?.getViewCellIndex(activeCell);
+		const idx = editor.viewModel?.getCellIndex(activeCell);
 		if (typeof idx !== 'number') {
 			return;
 		}
@@ -1142,35 +1097,65 @@ registerAction2(class extends Action2 {
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.action.notebook.testResize',
-			title: 'Notebook Test Cell Resize',
-			category: NOTEBOOK_ACTIONS_CATEGORY,
+			id: 'workbench.action.notebook.focusTop',
+			title: 'Notebook Focus First Cell',
 			keybinding: {
-				when: IsDevelopmentContext,
-				primary: undefined,
+				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
+				primary: KeyMod.CtrlCmd | KeyCode.Home,
+				mac: { primary: KeyMod.CtrlCmd | KeyCode.UpArrow },
 				weight: KeybindingWeight.WorkbenchContrib
 			},
 			f1: true
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const editorService = accessor.get(IEditorService);
-		const resource = editorService.activeEditor?.resource;
-		if (!resource) {
+	async run(accessor: ServicesAccessor, context?: INotebookCellActionContext): Promise<void> {
+		if (!isCellActionContext(context)) {
+			context = getActiveCellContext(accessor);
+			if (!context) {
+				return;
+			}
+		}
+
+		const editor = context.notebookEditor;
+		if (!editor.viewModel || !editor.viewModel.length) {
 			return;
 		}
 
-		const editor = getActiveNotebookEditor(editorService);
-		if (!editor) {
+		const firstCell = editor.viewModel.viewCells[0];
+		editor.focusNotebookCell(firstCell, false);
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.notebook.focusBottom',
+			title: 'Notebook Focus Last Cell',
+			keybinding: {
+				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
+				primary: KeyMod.CtrlCmd | KeyCode.End,
+				mac: { primary: KeyMod.CtrlCmd | KeyCode.DownArrow },
+				weight: KeybindingWeight.WorkbenchContrib
+			},
+			f1: true
+		});
+	}
+
+	async run(accessor: ServicesAccessor, context?: INotebookCellActionContext): Promise<void> {
+		if (!isCellActionContext(context)) {
+			context = getActiveCellContext(accessor);
+			if (!context) {
+				return;
+			}
+		}
+
+		const editor = context.notebookEditor;
+		if (!editor.viewModel || !editor.viewModel.length) {
 			return;
 		}
 
-		const cells = editor.viewModel?.viewCells;
-
-		if (cells && cells.length) {
-			const firstCell = cells[0];
-			editor.layoutNotebookCell(firstCell, 400);
-		}
+		const firstCell = editor.viewModel.viewCells[editor.viewModel.length - 1];
+		editor.focusNotebookCell(firstCell, false);
 	}
 });
